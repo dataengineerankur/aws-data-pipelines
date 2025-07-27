@@ -19,7 +19,7 @@
     },
     "StartLandingCrawler": {
       "Type": "Task",
-      "Resource": "arn:aws:states:::aws-sdk:glue:startCrawler.runTask",
+      "Resource": "arn:aws:states:::aws-sdk:glue:startCrawler",
       "Parameters": {
         "Name": "ga_events_landing_crawler"
       },
@@ -71,7 +71,7 @@
     },
     "StartRawCrawler": {
       "Type": "Task",
-      "Resource": "arn:aws:states:::aws-sdk:glue:startCrawler.runTask",
+      "Resource": "arn:aws:states:::aws-sdk:glue:startCrawler",
       "Parameters": {
         "Name": "ga_events_raw_crawler"
       },

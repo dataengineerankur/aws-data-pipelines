@@ -94,87 +94,118 @@ deploy_lambda() {
     # Create deployment package
     zip -r ga_ingest.zip .
     
-    # Deploy Lambda function
-    aws lambda create-function \
-        --function-name ga-ingest-lambda \
-        --runtime python3.9 \
-        --role "$LAMBDA_ROLE_ARN" \
-        --handler ga_ingest.lambda_handler \
-        --zip-file fileb://ga_ingest.zip \
-        --timeout 300 \
-        --environment Variables="S3_BUCKET=$S3_BUCKET" \
-        --description "Google Analytics data ingestion function" || {
-        print_warning "Lambda function might already exist. Updating..."
+    # Check if Lambda function exists
+    if aws lambda get-function --function-name ga-ingest-lambda &> /dev/null; then
+        print_status "Lambda function exists. Updating..."
         aws lambda update-function-code \
             --function-name ga-ingest-lambda \
             --zip-file fileb://ga_ingest.zip
-    }
-    
+
+        # Update environment variables
+        aws lambda update-function-configuration \
+            --function-name ga-ingest-lambda \
+            --environment "Variables={S3_BUCKET=$S3_BUCKET}"
+    else
+        print_status "Creating new Lambda function..."
+        aws lambda create-function \
+            --function-name ga-ingest-lambda \
+            --runtime python3.9 \
+            --role "$LAMBDA_ROLE_ARN" \
+            --handler ga_ingest.lambda_handler \
+            --zip-file fileb://ga_ingest.zip \
+            --timeout 300 \
+            --environment "Variables={S3_BUCKET=$S3_BUCKET}" \
+            --description "Google Analytics data ingestion function"
+    fi
+
     cd ..
-    
+
     print_status "Lambda function deployed successfully!"
 }
 
 # Upload Glue jobs to S3
 upload_glue_jobs() {
     print_status "Uploading Glue jobs to S3..."
-    
+
     aws s3 cp glue_jobs/ga_landing_to_raw.py "s3://$S3_BUCKET/glue_jobs/"
     aws s3 cp glue_jobs/ga_to_redshift.py "s3://$S3_BUCKET/glue_jobs/"
-    
+
     print_status "Glue jobs uploaded successfully!"
 }
 
 # Create Glue jobs
 create_glue_jobs() {
     print_status "Creating Glue jobs..."
-    
-    # Create landing to raw job
-    aws glue create-job \
-        --name ga_landing_to_raw_job \
-        --role "$GLUE_ROLE_ARN" \
-        --command Name=glueetl,ScriptLocation="s3://$S3_BUCKET/glue_jobs/ga_landing_to_raw.py" \
-        --default-arguments '{"--job-language":"python","--job-bookmark-option":"job-bookmark-enable"}' \
-        --description "Process GA data from landing to raw zone" || {
-        print_warning "Glue job ga_landing_to_raw_job might already exist."
-    }
-    
-    # Create Redshift load job
-    aws glue create-job \
-        --name ga_to_redshift_job \
-        --role "$GLUE_ROLE_ARN" \
-        --command Name=glueetl,ScriptLocation="s3://$S3_BUCKET/glue_jobs/ga_to_redshift.py" \
-        --default-arguments '{"--job-language":"python","--job-bookmark-option":"job-bookmark-enable"}' \
-        --description "Load GA data to Redshift" || {
-        print_warning "Glue job ga_to_redshift_job might already exist."
-    }
-    
+
+    # Check if landing to raw job exists
+    if aws glue get-job --job-name ga_landing_to_raw_job &> /dev/null; then
+        print_warning "Glue job ga_landing_to_raw_job already exists."
+    else
+        aws glue create-job \
+            --name ga_landing_to_raw_job \
+            --role "$GLUE_ROLE_ARN" \
+            --command Name=glueetl,ScriptLocation="s3://$S3_BUCKET/glue_jobs/ga_landing_to_raw.py" \
+            --default-arguments '{"--job-language":"python","--job-bookmark-option":"job-bookmark-enable"}' \
+            --description "Process GA data from landing to raw zone"
+    fi
+
+    # Check if Redshift load job exists
+    if aws glue get-job --job-name ga_to_redshift_job &> /dev/null; then
+        print_warning "Glue job ga_to_redshift_job already exists."
+    else
+        aws glue create-job \
+            --name ga_to_redshift_job \
+            --role "$GLUE_ROLE_ARN" \
+            --command Name=glueetl,ScriptLocation="s3://$S3_BUCKET/glue_jobs/ga_to_redshift.py" \
+            --default-arguments '{"--job-language":"python","--job-bookmark-option":"job-bookmark-enable"}' \
+            --description "Load GA data to Redshift"
+    fi
+
     print_status "Glue jobs created successfully!"
+}
+
+# Create Step Functions state machine
+create_step_functions() {
+    print_status "Creating Step Functions state machine..."
+
+    # Check if state machine exists
+    if aws stepfunctions describe-state-machine --state-machine-arn "arn:aws:states:$(aws configure get region):$(aws sts get-caller-identity --query Account --output text):stateMachine:ga-pipeline-state-machine" &> /dev/null; then
+        print_warning "Step Functions state machine already exists."
+    else
+        # Create state machine
+        aws stepfunctions create-state-machine \
+            --name ga-pipeline-state-machine \
+            --definition file://step_functions_pipeline.json \
+            --role-arn "arn:aws:iam::$(aws sts get-caller-identity --query Account --output text):role/ga-step-functions-role" \
+            --description "Google Analytics 4 Pipeline Orchestration"
+
+        print_status "Step Functions state machine created successfully!"
+    fi
 }
 
 # Test the pipeline
 test_pipeline() {
     print_status "Testing the pipeline..."
-    
+
     # Test Lambda function
     print_status "Testing Lambda function..."
     aws lambda invoke \
         --function-name ga-ingest-lambda \
         --payload '{}' \
         response.json
-    
+
     if [ -f response.json ]; then
         print_status "Lambda function test completed. Check response.json for details."
         cat response.json
         rm response.json
     fi
-    
+
     # Check S3 for ingested data
     print_status "Checking S3 for ingested data..."
     aws s3 ls "s3://$S3_BUCKET/landing/ga_events/" || {
         print_warning "No data found in landing zone yet. This is normal for first run."
     }
-    
+
     print_status "Pipeline test completed!"
 }
 
@@ -183,20 +214,21 @@ main() {
     echo "=========================================="
     echo "Google Analytics Pipeline Deployment"
     echo "=========================================="
-    
+
     check_prerequisites
     deploy_infrastructure
     deploy_lambda
     upload_glue_jobs
     create_glue_jobs
+    create_step_functions
     test_pipeline
-    
+
     echo "=========================================="
     print_status "Deployment completed successfully!"
     echo "=========================================="
     echo ""
     echo "Next steps:"
-    echo "1. Update your Google Analytics View ID in lambda/ga_ingest.py"
+    echo "1. Update your Google Analytics Property ID in lambda/ga_ingest.py"
     echo "2. Configure Redshift connection in Glue console (if using internal tables)"
     echo "3. Set up Step Functions for orchestration (optional)"
     echo "4. Configure DBT for data transformation (optional)"

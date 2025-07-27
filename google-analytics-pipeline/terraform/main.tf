@@ -153,6 +153,91 @@ output "lambda_role_arn" {
   value = aws_iam_role.lambda_role.arn
 }
 
+# IAM Role for Step Functions
+resource "aws_iam_role" "step_functions_role" {
+  name = "ga-step-functions-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "states.amazonaws.com"
+        }
+      }
+    ]
+  })
+}
+
+# IAM Policy for Step Functions
+resource "aws_iam_role_policy" "step_functions_policy" {
+  name = "ga-step-functions-policy"
+  role = aws_iam_role.step_functions_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "lambda:InvokeFunction"
+        ]
+        Resource = [
+          "arn:aws:lambda:*:*:function:ga-ingest-lambda"
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "glue:StartCrawler",
+          "glue:GetCrawler",
+          "glue:GetCrawlerMetrics"
+        ]
+        Resource = [
+          "arn:aws:glue:*:*:crawler/ga_events_landing_crawler",
+          "arn:aws:glue:*:*:crawler/ga_events_raw_crawler"
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "glue:StartJobRun",
+          "glue:GetJobRun",
+          "glue:GetJobRuns"
+        ]
+        Resource = [
+          "arn:aws:glue:*:*:job/ga_landing_to_raw_job",
+          "arn:aws:glue:*:*:job/ga_to_redshift_job"
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ]
+        Resource = "arn:aws:logs:*:*:*"
+      }
+    ]
+  })
+}
+
+# Outputs
+output "s3_bucket_name" {
+  value = aws_s3_bucket.analytics_data.id
+}
+
+output "lambda_role_arn" {
+  value = aws_iam_role.lambda_role.arn
+}
+
 output "glue_role_arn" {
   value = aws_iam_role.glue_role.arn
+}
+
+output "step_functions_role_arn" {
+  value = aws_iam_role.step_functions_role.arn
 } 
