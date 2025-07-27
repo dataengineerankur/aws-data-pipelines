@@ -1,0 +1,37 @@
+# ===== Lambda =====
+lambda/*
+!lambda/ga_ingest.py
+!lambda/requirements.txt
+
+# ===== Terraform =====
+terraform/.terraform/
+terraform/terraform.tfstate
+terraform/terraform.tfstate.*
+terraform/*.tfplan
+terraform/crash.log
+
+# Optional: lock file (usually safe to keep)
+# !terraform/.terraform.lock.hcl
+
+# Ignore override files (Terraform local overrides)
+terraform/override.tf
+terraform/override.tf.json
+terraform/*_override.tf
+terraform/*_override.tf.json
+
+# Ignore CLI config files
+.terraformrc
+terraform.rc
+
+# ===== Python general ignores =====
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+ENV/
+build/
+dist/
+*.egg-info/

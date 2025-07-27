@@ -1,0 +1,39 @@
+version: 2
+
+sources:
+  - name: analytics_raw
+    description: "Raw Google Analytics 4 data from S3"
+    tables:
+      - name: ga_events_raw
+        description: "Raw Google Analytics 4 events data"
+        columns:
+          - name: event_date
+            description: "Date of the event"
+            tests:
+              - not_null
+          - name: page_path
+            description: "Page path visited"
+            tests:
+              - not_null
+          - name: traffic_source
+            description: "Source of traffic"
+          - name: traffic_medium
+            description: "Medium of traffic"
+          - name: sessions
+            description: "Number of sessions"
+            tests:
+              - not_null
+          - name: total_users
+            description: "Number of total users"
+            tests:
+              - not_null
+          - name: screen_page_views
+            description: "Number of screen page views"
+            tests:
+              - not_null
+          - name: event_count
+            description: "Number of events"
+            tests:
+              - not_null
+          - name: processed_at
+            description: "Timestamp when data was processed" 

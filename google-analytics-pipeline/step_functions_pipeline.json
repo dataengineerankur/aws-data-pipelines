@@ -1,0 +1,132 @@
+{
+  "Comment": "Google Analytics Data Pipeline",
+  "StartAt": "IngestGAData",
+  "States": {
+    "IngestGAData": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "ga-ingest-lambda",
+        "Payload": {}
+      },
+      "Next": "StartLandingCrawler",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "PipelineFailed"
+        }
+      ]
+    },
+    "StartLandingCrawler": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::aws-sdk:glue:startCrawler.runTask",
+      "Parameters": {
+        "Name": "ga_events_landing_crawler"
+      },
+      "Next": "WaitForLandingCrawler",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "PipelineFailed"
+        }
+      ]
+    },
+    "WaitForLandingCrawler": {
+      "Type": "Wait",
+      "Seconds": 60,
+      "Next": "CheckLandingCrawler"
+    },
+    "CheckLandingCrawler": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::aws-sdk:glue:getCrawler",
+      "Parameters": {
+        "Name": "ga_events_landing_crawler"
+      },
+      "Next": "IsLandingCrawlerComplete"
+    },
+    "IsLandingCrawlerComplete": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.Crawler.State",
+          "StringEquals": "READY",
+          "Next": "StartLandingToRawJob"
+        }
+      ],
+      "Default": "WaitForLandingCrawler"
+    },
+    "StartLandingToRawJob": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::glue:startJobRun.sync",
+      "Parameters": {
+        "JobName": "ga_landing_to_raw_job"
+      },
+      "Next": "StartRawCrawler",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "PipelineFailed"
+        }
+      ]
+    },
+    "StartRawCrawler": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::aws-sdk:glue:startCrawler.runTask",
+      "Parameters": {
+        "Name": "ga_events_raw_crawler"
+      },
+      "Next": "WaitForRawCrawler",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "PipelineFailed"
+        }
+      ]
+    },
+    "WaitForRawCrawler": {
+      "Type": "Wait",
+      "Seconds": 60,
+      "Next": "CheckRawCrawler"
+    },
+    "CheckRawCrawler": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::aws-sdk:glue:getCrawler",
+      "Parameters": {
+        "Name": "ga_events_raw_crawler"
+      },
+      "Next": "IsRawCrawlerComplete"
+    },
+    "IsRawCrawlerComplete": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.Crawler.State",
+          "StringEquals": "READY",
+          "Next": "StartRedshiftLoadJob"
+        }
+      ],
+      "Default": "WaitForRawCrawler"
+    },
+    "StartRedshiftLoadJob": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::glue:startJobRun.sync",
+      "Parameters": {
+        "JobName": "ga_to_redshift_job"
+      },
+      "Next": "PipelineSucceeded",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "PipelineFailed"
+        }
+      ]
+    },
+    "PipelineSucceeded": {
+      "Type": "Succeed"
+    },
+    "PipelineFailed": {
+      "Type": "Fail",
+      "Cause": "Google Analytics pipeline failed"
+    }
+  }
+} 
