@@ -1,5 +1,29 @@
 
----
+# AWS Data Pipelines 🚀
+
+A collection of end-to-end, production-grade data pipeline templates using AWS cloud-native services.  
+Each pipeline demonstrates best practices for scalable data ingestion, processing, data quality, and analytics using services such as S3, Glue, Lambda, Redshift, Step Functions, Athena, and more.
+
+## 📦 Repository Structure
+
+```plaintext
+aws-data-pipelines/
+|
+├── google-analytics-pipeline/
+|   ├── terraform/           # Infrastructure as code for S3, Glue, etc.
+|   ├── lambda/              # Lambda functions for API ingestion
+|   ├── glue_jobs/           # Glue ETL scripts
+|   ├── step_function/       # Step Function workflow definitions
+|   ├── dbt_models/          # DBT models for transformations (if used)
+|   ├── README.md            # Pipeline-specific documentation
+|   └── ...                  # Other related scripts/configs
+|
+├── [future-pipeline-name]/
+|   └── ...
+|
+└── README.md                # (This file)
+
+```
 
 ## ✨ Available Pipelines
 
@@ -67,4 +91,4 @@ MIT License.
 
 ## 📝 Maintainers
 
-- [Ankur Chopra](https://github.com/ankurnearform)
+- [Ankur Chopra](https://github.com/dataengineerankur)
